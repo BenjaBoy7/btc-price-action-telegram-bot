@@ -11,15 +11,26 @@ const bot = new Telegraf(TELEGRAM_TOKEN);
 
 const BINANCE_API_URL = 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=';
 
+const axios = require('axios');
+
 async function fetchBtcPriceHistory(interval) {
+    console.log(`Fetching BTC price history for interval: ${interval}`);
     try {
         const response = await axios.get(`${BINANCE_API_URL}${interval}`);
+        console.log(`Response status: ${response.status}`);
+        console.log(`Fetched data: ${JSON.stringify(response.data)}`);
         return response.data.map(candle => parseFloat(candle[4])); // Closing prices
     } catch (error) {
-        console.error(`Error fetching BTC price history: ${error}`);
+        if (error.response) {
+            console.error(`Error response status: ${error.response.status}`);
+            console.error(`Error response data: ${JSON.stringify(error.response.data)}`);
+        } else {
+            console.error(`Error message: ${error.message}`);
+        }
         return null;
     }
 }
+
 
 function sendTelegramMessage(message) {
     bot.telegram.sendMessage(TELEGRAM_CHAT_ID, message)
