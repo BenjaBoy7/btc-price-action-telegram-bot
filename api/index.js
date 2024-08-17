@@ -1,6 +1,6 @@
 const axios = require('axios');
 const { Telegraf } = require('telegraf');
-const { RSI, EMA, MACD, BollingerBands, ATR } = require('technicalindicators');
+const { RSI, EMA, MACD, BollingerBands } = require('technicalindicators');
 
 // Configuration: Add your bot token and chat ID
 const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
@@ -11,156 +11,191 @@ const bot = new Telegraf(TELEGRAM_TOKEN);
 
 // Configuration: Trading parameters
 const RSI_PERIOD = 14;
-const ATR_PERIOD = 14;
+const SHORT_EMA_PERIOD = 12;
+const LONG_EMA_PERIOD = 26;
 const BOLLINGER_PERIOD = 20;
 const BOLLINGER_STD_DEV = 2;
-const EMA_SHORT_PERIOD = 12;
-const EMA_LONG_PERIOD = 26;
-const MACD_SIGNAL_PERIOD = 9;
 
 const BINANCE_API_URL = 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=';
+
+// Store price history for 5-minute and 15-minute charts
+let priceHistory5Min = [];
+let priceHistory15Min = [];
 
 // Function to fetch the BTC price history from Binance for a specific interval
 async function fetchBtcPriceHistory(interval) {
     try {
         const response = await axios.get(`${BINANCE_API_URL}${interval}`);
-        return response.data.map(candle => ({
-            high: parseFloat(candle[2]),
-            low: parseFloat(candle[3]),
-            close: parseFloat(candle[4]),
-        }));
+        return response.data.map(candle => parseFloat(candle[4])); // Closing prices
     } catch (error) {
         console.error(`Error fetching BTC price history: ${error}`);
         return null;
     }
 }
 
-// Function to calculate ATR (Average True Range)
-function calculateAtr(highs, lows, closes) {
-    return ATR.calculate({
-        high: highs,
-        low: lows,
-        close: closes,
-        period: ATR_PERIOD
-    });
+// Function to send a message via Telegram
+async function sendTelegramMessage(message) {
+    try {
+        await bot.telegram.sendMessage(TELEGRAM_CHAT_ID, message);
+        console.log(`Message sent: ${message}`);
+    } catch (err) {
+        console.error(`Error sending message: ${err}`);
+    }
 }
 
-// Function to calculate Bollinger Bands
-function calculateBollingerBands(prices) {
-    return BollingerBands.calculate({
-        period: BOLLINGER_PERIOD,
-        stdDev: BOLLINGER_STD_DEV,
-        values: prices
-    });
+// Function to send a test message via Telegram
+async function sendTestTelegramMessage() {
+    try {
+        await sendTelegramMessage('This is a test message from your bot.');
+    } catch (error) {
+        console.error('Error sending test message:', error);
+    }
+}
+
+// Function to calculate RSI
+function calculateRsi(prices) {
+    return RSI.calculate({ values: prices, period: RSI_PERIOD });
 }
 
 // Function to calculate MACD
 function calculateMacd(prices) {
     return MACD.calculate({
         values: prices,
-        fastPeriod: EMA_SHORT_PERIOD,
-        slowPeriod: EMA_LONG_PERIOD,
-        signalPeriod: MACD_SIGNAL_PERIOD
+        fastPeriod: SHORT_EMA_PERIOD,
+        slowPeriod: LONG_EMA_PERIOD,
+        signalPeriod: 9,
+        SimpleMAOscillator: false,
+        SimpleMASignal: false
     });
 }
 
-// Function to send a message via Telegram
-function sendTelegramMessage(message) {
-    bot.telegram.sendMessage(TELEGRAM_CHAT_ID, message)
-        .then(() => console.log(`Message sent: ${message}`))
-        .catch(err => console.error(`Error sending message: ${err}`));
+// Function to calculate EMA (Exponential Moving Average)
+function calculateEma(prices, period) {
+    return EMA.calculate({ values: prices, period: period });
 }
 
-// Function to format message
-function formatMessage(price, tp1, tp2, tp3, sl, macdSignal, rsiLevel, rsiSignal, emaSignal, bbSignal, atrSignal) {
-    return `
-📊 *BTC Trade Update*:
-
-📈 BUY @: $${price.toFixed(2)}
-
-🎯 TP1: $${tp1.toFixed(2)}
-🎯 TP2: $${tp2.toFixed(2)}
-🎯 TP3: $${tp3.toFixed(2)}
-
-🚨 SL: $${sl.toFixed(2)}
-
-💹 Indicators:
-- MACD: ${macdSignal ? 'BUY 📈' : 'SELL 📉'}
-- RSI (${rsiLevel.toFixed(2)}): ${rsiSignal ? 'BUY 📈' : 'SELL 📉'}
-- EMA: ${emaSignal ? 'BUY 📈' : 'SELL 📉'}
-- Bollinger Band: ${bbSignal ? 'BUY 📈' : 'SELL 📉'}
-- ATR: ${atrSignal ? 'BUY 📈' : 'SELL 📉'}
-
-⚠️ _Always do your own research before making any trades._
-`;
+// Function to calculate Bollinger Bands
+function calculateBollingerBands(prices) {
+    return BollingerBands.calculate({
+        period: BOLLINGER_PERIOD,
+        values: prices,
+        stdDev: BOLLINGER_STD_DEV
+    });
 }
 
-// Main function to monitor BTC price and check indicators
-async function monitorBtcPrice() {
-    const priceData5Min = await fetchBtcPriceHistory('5m'); // Fetch 5-minute price data
-    const priceData1Hr = await fetchBtcPriceHistory('1h'); // Fetch 1-hour price data (for broader view)
+// Function to calculate Support and Resistance Levels
+function calculateSupportResistance(prices) {
+    const supportLevels = [];
+    const resistanceLevels = [];
 
-    if (priceData5Min && priceData5Min.length >= RSI_PERIOD && priceData1Hr.length >= ATR_PERIOD) {
-        const highs = priceData5Min.map(data => data.high);
-        const lows = priceData5Min.map(data => data.low);
-        const closes = priceData5Min.map(data => data.close);
+    for (let i = 1; i < prices.length - 1; i++) {
+        const prev = prices[i - 1];
+        const curr = prices[i];
+        const next = prices[i + 1];
 
-        // Calculate ATR for volatility and determine support levels
-        const atrValues = calculateAtr(highs, lows, closes);
-        const latestAtr = atrValues[atrValues.length - 1];
-        const latestPrice = closes[closes.length - 1];
-
-        // Bollinger Bands, RSI, MACD, and EMA calculation
-        const bollingerBands = calculateBollingerBands(closes);
-        const rsiValues = RSI.calculate({ values: closes, period: RSI_PERIOD });
-        const macdValues = calculateMacd(closes);
-        const emaShort = EMA.calculate({ values: closes, period: EMA_SHORT_PERIOD });
-        const emaLong = EMA.calculate({ values: closes, period: EMA_LONG_PERIOD });
-
-        // Latest indicator values
-        const latestRsi = rsiValues[rsiValues.length - 1];
-        const latestMacd = macdValues[macdValues.length - 1];
-        const latestBollinger = bollingerBands[bollingerBands.length - 1];
-        const latestEmaShort = emaShort[emaShort.length - 1];
-        const latestEmaLong = emaLong[emaLong.length - 1];
-
-        // Determine buy/sell signals based on indicators
-        const rsiSignal = latestRsi < 30;
-        const macdSignal = latestMacd.MACD > latestMacd.signal;
-        const emaSignal = latestEmaShort > latestEmaLong;
-        const bbSignal = latestPrice <= latestBollinger.lower; // Price near lower Bollinger Band
-        const atrSignal = latestPrice <= Math.min(...lows) + latestAtr; // Price near ATR low
-
-        // Calculate Take Profit (TP) levels and Stop Loss (SL)
-        const tp1 = latestPrice * 1.0075; // 0.75% increase
-        const tp2 = latestPrice * 1.015;  // 1.5% increase
-        const tp3 = latestPrice * 1.02;   // 2% increase
-        const sl = Math.min(...lows) - latestAtr; // SL right below support (ATR-based)
-
-        // Check if at least 2 signals align for a BUY signal
-        const buySignals = [rsiSignal, macdSignal, emaSignal, bbSignal, atrSignal].filter(signal => signal).length;
-
-        if (buySignals >= 2) { // At least 2 indicators showing BUY
-            const message = formatMessage(
-                latestPrice, tp1, tp2, tp3, sl,
-                macdSignal, latestRsi, rsiSignal,
-                emaSignal, bbSignal, atrSignal
-            );
-            sendTelegramMessage(message);
-        } else {
-            console.log('No valid buy signal: Not enough indicators aligned.');
+        // Check for local low (support level)
+        if (curr < prev && curr < next) {
+            supportLevels.push(curr);
         }
+
+        // Check for local high (resistance level)
+        if (curr > prev && curr > next) {
+            resistanceLevels.push(curr);
+        }
+    }
+
+    const latestSupport = Math.min(...supportLevels);
+    const latestResistance = Math.max(...resistanceLevels);
+
+    return { latestSupport, latestResistance };
+}
+
+// Trading strategy based on RSI, MACD, EMA, and Bollinger Bands
+function tradingStrategy(prices5Min, prices15Min) {
+    const rsi5Min = calculateRsi(prices5Min);
+    const macd5Min = calculateMacd(prices5Min);
+    const bollingerBands5Min = calculateBollingerBands(prices5Min);
+
+    const rsi15Min = calculateRsi(prices15Min);
+    const macd15Min = calculateMacd(prices15Min);
+    const bollingerBands15Min = calculateBollingerBands(prices15Min);
+
+    const ema50_5Min = calculateEma(prices5Min, 50);
+    const ema200_5Min = calculateEma(prices5Min, 200);
+    const ema50_15Min = calculateEma(prices15Min, 50);
+    const ema200_15Min = calculateEma(prices15Min, 200);
+
+    const latestRsi5Min = rsi5Min[rsi5Min.length - 1];
+    const latestRsi15Min = rsi15Min[rsi15Min.length - 1];
+
+    const latestMacd5Min = macd5Min[macd5Min.length - 1];
+    const latestMacd15Min = macd15Min[macd15Min.length - 1];
+
+    const latestBollinger5Min = bollingerBands5Min[bollingerBands5Min.length - 1];
+    const latestBollinger15Min = bollingerBands15Min[bollingerBands15Min.length - 1];
+
+    const latestEma50_5Min = ema50_5Min[ema50_5Min.length - 1];
+    const latestEma200_5Min = ema200_5Min[ema200_5Min.length - 1];
+    const latestEma50_15Min = ema50_15Min[ema50_15Min.length - 1];
+    const latestEma200_15Min = ema200_15Min[ema200_15Min.length - 1];
+
+    // Define buy/sell strategy
+    if (latestRsi5Min < 30 && latestRsi15Min < 30 && latestMacd5Min.MACD > latestMacd5Min.signal && latestMacd15Min.MACD > latestMacd15Min.signal) {
+        return 'buy';  // RSI oversold and MACD bullish crossover on both 5-min and 15-min charts
+    } else if (latestRsi5Min > 70 && latestRsi15Min > 70 && latestMacd5Min.MACD < latestMacd5Min.signal && latestMacd15Min.MACD < latestMacd15Min.signal) {
+        return 'sell'; // RSI overbought and MACD bearish crossover on both 5-min and 15-min charts
+    } else if (latestEma50_5Min > latestEma200_5Min && latestEma50_15Min > latestEma200_15Min) {
+        return 'buy'; // Golden cross on both 5-min and 15-min charts (EMA 50 > EMA 200)
+    } else if (latestEma50_5Min < latestEma200_5Min && latestEma50_15Min < latestEma200_15Min) {
+        return 'sell'; // Death cross on both 5-min and 15-min charts (EMA 50 < EMA 200)
     } else {
-        console.log('Not enough data to calculate indicators.');
+        return 'hold'; // No action
     }
 }
 
-// Handle serverless function execution
-module.exports = async (req, res) => {
-    await monitorBtcPrice();
-    res.status(200).send('Monitoring BTC price...');
-};
+// Main function to monitor BTC price and apply the trading strategy
+async function monitorBtcPrice() {
+    const prices5Min = await fetchBtcPriceHistory('5m');  // Fetch 5-minute price history
+    const prices15Min = await fetchBtcPriceHistory('15m'); // Fetch 15-minute price history
 
-// Start the bot (only needed if you're not deploying as a serverless function)
-// bot.launch();
-// console.log('Bot started, monitoring BTC price...');
+    if (prices5Min && prices15Min) {
+        priceHistory5Min = prices5Min;
+        priceHistory15Min = prices15Min;
+
+        console.log('Fetched price history for both 5m and 15m intervals.');
+
+        if (priceHistory5Min.length >= LONG_EMA_PERIOD && priceHistory15Min.length >= LONG_EMA_PERIOD) {
+            const action = tradingStrategy(priceHistory5Min, priceHistory15Min);
+            const currentPrice = priceHistory5Min[priceHistory5Min.length - 1]; // Latest 5-min price
+
+            const { latestSupport, latestResistance } = calculateSupportResistance(priceHistory15Min);
+
+            if (action === 'buy') {
+                const message = `📈 BUY BTC NOW! 
+                Price: $${currentPrice.toFixed(2)} 
+                Stop Loss: Below support level at $${latestSupport.toFixed(2)}
+                Take Profit at resistance level: $${latestResistance.toFixed(2)}
+                (RSI/MACD/Bollinger/EMA strategy)`;
+                await sendTelegramMessage(message);
+            } else if (action === 'sell') {
+                const message = `📉 SELL BTC NOW! Price: $${currentPrice.toFixed(2)} (RSI/MACD/Bollinger/EMA strategy)`;
+                await sendTelegramMessage(message);
+            } else {
+                console.log('Hold action, no trade.');
+            }
+        }
+    } else {
+        console.log('Could not fetch BTC price history.');
+    }
+}
+
+// Vercel serverless function handler
+module.exports = async (req, res) => {
+    try {
+        await monitorBtcPrice();
+        res.status(200).send('Monitoring BTC price...');
+    } catch (error) {
+        console.error('Error in serverless function:', error);
+        res.status(500).send('Internal Server Error');
+    }
+};
