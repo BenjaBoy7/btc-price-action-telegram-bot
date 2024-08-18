@@ -1,53 +1,23 @@
-const axios = require('axios');
-const { Telegraf } = require('telegraf');
-const { RSI, EMA, MACD, BollingerBands } = require('technicalindicators');
+const TelegramBot = require('node-telegram-bot-api');
 
-// Configuration: Add your bot token and chat ID
-const TELEGRAM_TOKEN = process.env.TELEGRAM_TOKEN;
-const TELEGRAM_CHAT_ID = process.env.TELEGRAM_CHAT_ID;
+// Replace 'YOUR_BOT_API_TOKEN' with your bot's token from the BotFather
+const token =  process.env.TELEGRAM_TOKEN;
 
-// Initialize the Telegram bot
-const bot = new Telegraf(TELEGRAM_TOKEN);
+// Create a bot that uses 'polling' to fetch new updates
+const bot = new TelegramBot(token, {polling: false});
 
-const BINANCE_API_URL = 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=';
+// Replace 'CHAT_ID' with the chat ID or the user ID you want to send the message to
+const chatId =  process.env.TELEGRAM_CHAT_ID;
 
-const axios = require('axios');
+// Message to send
+const message = 'Hello from my Telegram bot!';
 
-async function fetchBtcPriceHistory(interval) {
-    console.log(`Fetching BTC price history for interval: ${interval}`);
-    try {
-        const response = await axios.get(`${BINANCE_API_URL}${interval}`);
-        console.log(`Response status: ${response.status}`);
-        console.log(`Fetched data: ${JSON.stringify(response.data)}`);
-        return response.data.map(candle => parseFloat(candle[4])); // Closing prices
-    } catch (error) {
-        if (error.response) {
-            console.error(`Error response status: ${error.response.status}`);
-            console.error(`Error response data: ${JSON.stringify(error.response.data)}`);
-        } else {
-            console.error(`Error message: ${error.message}`);
-        }
-        return null;
-    }
-}
+// Send the message
+bot.sendMessage(chatId, message)
+  .then(() => {
+    console.log('Message sent successfully');
+  })
+  .catch((error) => {
+    console.error('Error sending message:', error);
+  });
 
-
-function sendTelegramMessage(message) {
-    bot.telegram.sendMessage(TELEGRAM_CHAT_ID, message)
-        .then(() => console.log(`Message sent: ${message}`))
-        .catch(err => console.error(`Error sending message: ${err}`));
-}
-
-async function monitorBtcPrice() {
-    const prices5Min = await fetchBtcPriceHistory('5m');
-    if (prices5Min) {
-        const latestPrice = prices5Min[prices5Min.length - 1];
-        const message = `📈 BTC Price: $${latestPrice.toFixed(2)}`;
-        sendTelegramMessage(message);
-    }
-}
-
-module.exports = async (req, res) => {
-    await monitorBtcPrice();
-    res.status(200).send('BTC price sent to Telegram.');
-};
