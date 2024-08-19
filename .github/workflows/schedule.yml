@@ -1,0 +1,18 @@
+name: Call Vercel API every minute
+
+# Controls when the workflow will run
+on:
+  schedule:
+    # Run every 1 minute
+    - cron: "*/1 * * * *"
+
+# The job to run
+jobs:
+  call-vercel-api:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step to make the HTTP request to Vercel
+      - name: Send request to Vercel API
+        run: |
+          curl -X GET "https://btc-price-action-robot.biniamabera.com/api/"
