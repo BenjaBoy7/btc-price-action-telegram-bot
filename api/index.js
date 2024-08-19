@@ -7,16 +7,25 @@ const chatId = process.env.TELEGRAM_CHAT_ID;
 const bot = new TelegramBot(token, { polling: false });
 
 // Function to get BTC price
+// async function getBTCPrice() {
+//   try {
+//     const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
+//     return response.data.price;
+//   } catch (error) {
+//     console.error('Error fetching BTC price:', error);
+//     return null;
+//   }
+// }
 async function getBTCPrice() {
-  try {
-    const response = await axios.get('https://api.binance.com/api/v3/ticker/price?symbol=BTCUSDT');
-    return response.data.price;
-  } catch (error) {
-    console.error('Error fetching BTC price:', error);
-    return null;
+    try {
+      const response = await axios.get('https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=usd');
+      return response.data.bitcoin.usd;
+    } catch (error) {
+      console.error('Error fetching BTC price:', error);
+      return null;
+    }
   }
-}
-
+  
 // Vercel function handler
 module.exports = async (req, res) => {
   const btcPrice = await getBTCPrice();
