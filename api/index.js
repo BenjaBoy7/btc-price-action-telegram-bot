@@ -1,12 +1,15 @@
-require('dotenv').config(); // Load environment variables from .env
+// require('dotenv').config(); // Load environment variables from .env
 
 const TelegramBot = require('node-telegram-bot-api');
 const axios = require('axios');
 
 // Environment variables
+// const token = process.env.TELEGRAM_TOKEN;
+// const chatId = process.env.TELEGRAM_CHAT_ID;
+
+// Configuration: Add your bot token and chat ID
 const token = process.env.TELEGRAM_TOKEN;
 const chatId = process.env.TELEGRAM_CHAT_ID;
-
 const bot = new TelegramBot(token, { polling: false });
 
 async function getBTCPrice() {
