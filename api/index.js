@@ -124,4 +124,8 @@ function sendTelegramMessage(message) {
 module.exports = async (req, res) => {
     await monitorBtcPrice();
     res.status(200).json({ status: 'BTC price and indicators sent.' });
+    bot.sendMessage(chatId, message)
+    .then(() => console.log(`Message sent: ${message}`))
+    .catch(err => console.error(`Error sending message: ${err}`));
+    res.status(200).json({ status: 'Test message sent.' }); 
 };
