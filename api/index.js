@@ -66,7 +66,7 @@ function calculateMacd(prices) {
 async function monitorBtcPrice() {
     const priceData = await fetchBtcPriceHistory();
 
-    if (priceData && priceData.length >= RSI_PERIOD) {
+    // if (priceData && priceData.length >= RSI_PERIOD) {
         const closes = priceData.map(data => data.close);
         const highs = closes; // Since CoinGecko provides only close prices, we approximate high and low with close prices
         const lows = closes;
@@ -108,9 +108,9 @@ async function monitorBtcPrice() {
         `;
         
         sendTelegramMessage(message);
-    } else {
-        console.log('Not enough data to calculate indicators.');
-    }
+    // } else {
+    //     console.log('Not enough data to calculate indicators.');
+    // }
 }
 
 // Function to send a message via Telegram
