@@ -124,6 +124,8 @@ function sendTelegramMessage(message) {
 module.exports = async (req, res) => {
     await monitorBtcPrice();
     res.status(200).json({ status: 'BTC price and indicators sent.' });
+
+    const message = "Test message from Vercel!";
     bot.sendMessage(chatId, message)
     .then(() => console.log(`Message sent: ${message}`))
     .catch(err => console.error(`Error sending message: ${err}`));
