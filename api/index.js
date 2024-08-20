@@ -25,7 +25,8 @@ async function fetchBtcPriceHistory() {
             close: price[1]
         }));
     } catch (error) {
-        console.error(`Error fetching BTC price history: ${error}`);
+        console.error(`Error fetching BTC price history: ${error.response?.status || error.message}`);
+        console.error('Error details:', error.response?.data || 'No additional error data');
         return null;
     }
 }
