@@ -16,17 +16,15 @@ const EMA_LONG_PERIOD = 26;
 const MACD_SIGNAL_PERIOD = 9;
 const ATR_PERIOD = 14;
 
-const BINANCE_API_URL = 'https://api.binance.com/api/v3/klines?symbol=BTCUSDT&interval=5m&limit=288'; // 288*5min = 24 hours
+const COINGECKO_API_URL = 'https://api.coingecko.com/api/v3/coins/bitcoin/market_chart?vs_currency=usd&days=1';
 
-// Function to fetch BTC price history from Binance
+// Function to fetch BTC price history from CoinGecko
 async function fetchBtcPriceHistory() {
     try {
-        const response = await axios.get(BINANCE_API_URL);
-        return response.data.map(candle => ({
-            time: candle[0],
-            high: parseFloat(candle[2]),
-            low: parseFloat(candle[3]),
-            close: parseFloat(candle[4]),
+        const response = await axios.get(COINGECKO_API_URL);
+        return response.data.prices.map(price => ({
+            time: price[0],
+            close: price[1]
         }));
     } catch (error) {
         console.error(`Error fetching BTC price history: ${error.response?.status || error.message}`);
@@ -69,9 +67,9 @@ async function monitorBtcPrice() {
     const priceData = await fetchBtcPriceHistory();
 
     if (priceData && priceData.length >= RSI_PERIOD) {
-        const highs = priceData.map(data => data.high);
-        const lows = priceData.map(data => data.low);
         const closes = priceData.map(data => data.close);
+        const highs = closes; // Since CoinGecko provides only close prices, we approximate high and low with close prices
+        const lows = closes;
 
         // Calculate indicators
         const atrValues = calculateAtr(highs, lows, closes);
